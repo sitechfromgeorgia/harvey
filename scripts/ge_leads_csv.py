@@ -46,16 +46,38 @@ async def main() -> int:
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fields = ["company", "legal_form", "id_code", "director", "phone", "email",
+    fields = ["priority", "company", "legal_form", "id_code", "director", "phone", "email",
               "website", "activity", "size", "registered", "primary_service",
               "services", "fit", "found_via", "status"]
+
+    def priority(r: dict, o: dict, company: dict) -> int:
+        """Who to call first. Explainable, not a model score.
+
+        ICP fit, plus whether we can actually reach them (a lead with no phone
+        and no e-mail is research, not a lead), plus a small bonus for a site we
+        can audit — the SEO/booking conversation needs evidence, and reading
+        their site is how we get it.
+        """
+        score = int(r.get("fit") or 0)
+        if o.get("GE_PHONE") or company.get("phone"):
+            score += 30
+        if o.get("GE_EMAIL"):
+            score += 20
+        if (company.get("domain") or "").strip():
+            score += 10
+        if r.get("primary_service"):
+            score += 10
+        return score
+
     with out_path.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
-        for r in rows:
+        for r in sorted(rows, key=lambda x: priority(x, obs.get(x["id"], {}),
+                                                    companies.get(x["id"], {})), reverse=True):
             o = obs.get(r["id"], {})
             company = companies.get(r["id"], {})
             w.writerow({
+                "priority": priority(r, o, company),
                 "company": r["company"], "legal_form": o.get("GE_LEGAL_FORM", ""),
                 "id_code": o.get("GE_ID_CODE", ""), "director": o.get("GE_HEAD", ""),
                 # Registry phone, then the listing phone OSM gave us.
