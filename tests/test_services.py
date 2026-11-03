@@ -74,6 +74,23 @@ def test_ai_blocked_site_gets_the_chatbot():
     assert any(f["key"] == "ai_chatbot" for f in fits)
 
 
+def test_blog_stale_is_an_age_in_days_not_a_flag():
+    """BLOG_STALE carries the age of the newest content: 6 days is healthy,
+    982 days is abandoned. Reading it as a boolean would sell SEO to everyone."""
+    fresh = service_fits(HOTEL_WITH_SITE, obs(BLOG_STALE=(6.0, "newest content 2026-10-28")))
+    assert not any(f["key"] == "seo" for f in fresh)
+
+    stale = service_fits(HOTEL_WITH_SITE, obs(BLOG_STALE=(982.0, "newest content 2024-02-25")))
+    seo = [f for f in stale if f["key"] == "seo"]
+    assert seo and seo[0]["score"] >= 80
+
+
+def test_ads_flag_zero_is_not_running_ads():
+    fits = service_fits({"name": "x", "domain": "x.ge", "website": "https://x.ge", "industry": ""},
+                        obs(RUNNING_GOOGLE_ADS=(0.0, "")))
+    assert not any(f["key"] == "landing" for f in fits)
+
+
 def test_no_evidence_means_no_offer():
     """A company we know nothing about gets a question, not a pitch."""
     fits = service_fits({"name": "უცნობი", "industry": "", "domain": "",

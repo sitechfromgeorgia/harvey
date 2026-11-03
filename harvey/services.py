@@ -80,6 +80,10 @@ SERVICES: list[dict] = [
 
 SERVICE_BY_KEY = {s["key"]: s for s in SERVICES}
 
+# BLOG_STALE is the age of the newest content in days, not a boolean: 6 days is
+# a healthy blog, 982 days is an abandoned one. Six months is the line.
+BLOG_STALE_DAYS = 180
+
 
 def _obs_map(observations: list[dict]) -> dict[str, dict]:
     """Latest observation per signal code (observations arrive newest-last)."""
@@ -140,7 +144,8 @@ def service_fits(company: dict, observations: list[dict]) -> list[dict]:
     social_only = bool(obs.get("GE_SOCIAL_ONLY"))
     rank = _num(obs, "SERP_RANK")
     pages = _num(obs, "SITE_PAGE_COUNT")
-    blog_stale = _num(obs, "BLOG_STALE") == 1.0
+    blog_age = _num(obs, "BLOG_STALE")       # days since the newest content
+    blog_stale = blog_age is not None and blog_age >= BLOG_STALE_DAYS
     no_schema = _num(obs, "NO_SCHEMA_MARKUP") == 1.0
     running_ads = (_num(obs, "RUNNING_GOOGLE_ADS") == 1.0 or _num(obs, "RUNNING_META_ADS") == 1.0)
     no_booking = _num(obs, "NO_ONLINE_BOOKING") == 1.0
