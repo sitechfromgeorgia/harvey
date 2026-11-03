@@ -1459,26 +1459,75 @@ class ScavioSearch(ScavioProvider):
         return out
 
 
-# Georgia's statistical business register. Imported here rather than at the
-# top: that module imports Business/DiscoveryProvider from this one, and a
-# top-level import would close the cycle before they exist.
-from harvey.collectors.georgia import GeorgiaRegistry  # noqa: E402
+# Georgia's providers are imported lazily, inside the first access to
+# PROVIDERS. Both of those modules import Business/DiscoveryProvider from this
+# one, so an eager import here would close the cycle: importing georgia_osm
+# first would find a half-built discover module. Building the map on first use
+# means discover is always complete before they are loaded, whichever module
+# the interpreter happens to touch first.
+class _LazyProviders(dict):
+    """A dict that fills itself the first time anything reads it."""
 
-PROVIDERS: dict[str, DiscoveryProvider] = {
-    p.key: p for p in (
-        OpenStreetMap(),
-        TinyFish(),
-        DataForSEOListings(),
-        DataForSEOSerp(),
-        DataForSEOMaps(),
-        Serper(),
-        ScavioMaps(),
-        ScavioSearch(),
-        # Georgia's own register. Imported here, after Business and
-        # DiscoveryProvider exist, because that module imports this one.
-        GeorgiaRegistry(),
-    )
-}
+    def __init__(self) -> None:
+        super().__init__()
+        self._loaded = False
+
+    def _ensure(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True          # set first: a failure must not loop
+        from harvey.collectors.georgia import GeorgiaRegistry
+        from harvey.collectors.georgia_osm import GeorgiaOSM
+        self.update({p.key: p for p in (
+            OpenStreetMap(),
+            TinyFish(),
+            DataForSEOListings(),
+            DataForSEOSerp(),
+            DataForSEOMaps(),
+            Serper(),
+            ScavioMaps(),
+            ScavioSearch(),
+            # Georgia's own register: who exists, legally.
+            GeorgiaRegistry(),
+            # OSM by Georgian tag inside a city box: the mirror image — fewer
+            # businesses, but many with a website to audit.
+            GeorgiaOSM(),
+        )})
+
+    def __getitem__(self, key):
+        self._ensure()
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        self._ensure()
+        return super().get(key, default)
+
+    def __contains__(self, key):
+        self._ensure()
+        return super().__contains__(key)
+
+    def __iter__(self):
+        self._ensure()
+        return super().__iter__()
+
+    def __len__(self):
+        self._ensure()
+        return super().__len__()
+
+    def keys(self):
+        self._ensure()
+        return super().keys()
+
+    def values(self):
+        self._ensure()
+        return super().values()
+
+    def items(self):
+        self._ensure()
+        return super().items()
+
+
+PROVIDERS: dict[str, DiscoveryProvider] = _LazyProviders()
 
 DEFAULT_PROVIDER = "osm"
 

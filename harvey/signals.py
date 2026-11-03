@@ -530,6 +530,21 @@ SIGNAL_CATALOG: list[dict] = [
         "cost_note": "free (Geostat open API)",
         "confidence_floor": 0.6,
     },
+    {
+        "code": "GE_SOCIAL_ONLY",
+        "label": "მხოლოდ Facebook/Instagram გვერდი",
+        "description": (
+            "The only web presence listed is a social page, not a site. This is "
+            "a real buying signal in Georgia: the business is online, it is "
+            "reachable, and it has nowhere to send a booking, a menu or a price "
+            "list — which is exactly what a site (or a booking flow) fixes."
+        ),
+        "category": "profile",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (OSM listing tags)",
+        "confidence_floor": 0.8,
+    },
 ]
 
 

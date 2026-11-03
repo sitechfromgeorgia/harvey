@@ -12,11 +12,13 @@ The state already publishes all of that. This fork reads it.
 | Piece | Where | What it does |
 |---|---|---|
 | `GeorgiaRegistry` discovery provider | `harvey/collectors/georgia.py` | Enumerates active businesses by NACE activity + region from the Geostat statistical register (open JSON API, no key, ~50 req/min) |
-| Ten registry signals | `harvey/signals.py` | `GE_ID_CODE`, `GE_LEGAL_FORM`, `GE_SIZE`, `GE_ACTIVITY`, `GE_REGISTERED`, `GE_NEW_REGISTRATION`, `GE_HEAD`, `GE_PHONE`, `GE_EMAIL`, `GE_WEB_MISSING` |
-| Georgian ICP preset | `harvey.local.yaml` (gitignored) | Batumi/Kobuleti — hotels, restaurants, beauty salons, car rental |
+| `GeorgiaOSM` discovery provider | `harvey/collectors/georgia_osm.py` | OSM objects by Georgian tag inside a city bounding box — the mirror image of the register: fewer businesses, but many with a website to audit |
+| Service fit | `harvey/services.py` | Maps the evidence to which of SiTech's services to sell (site, SEO, booking, payments, chatbot, SaaS, UI/UX, automation), with the price band and a quotable line |
+| Ten registry signals | `harvey/signals.py` | `GE_ID_CODE`, `GE_LEGAL_FORM`, `GE_SIZE`, `GE_ACTIVITY`, `GE_REGISTERED`, `GE_NEW_REGISTRATION`, `GE_HEAD`, `GE_PHONE`, `GE_EMAIL`, `GE_WEB_MISSING`, `GE_SOCIAL_ONLY` |
+| Georgian ICP preset | `harvey.local.yaml` (gitignored) | Batumi/Kobuleti — 14 sectors, any service |
 | Georgian outreach playbook | `skills/georgian_outreach.md` | Subject lines, tone, banned phrases, follow-up cadence, channel choice |
 | Georgian opt-out recognition | `harvey/config.py`, `harvey/agents/handler.py` | The footer can ask for «ნუ მწერთ», and a Georgian reply saying it stops Harvey |
-| End-to-end diagnostic | `scripts/ge_check_registry.py` | Proves the live API path in one command |
+| End-to-end diagnostics | `scripts/ge_check_registry.py`, `scripts/ge_report.py` | Prove the live API path and the service distribution in one command |
 
 ## Why the register beats a listings database here
 
@@ -58,6 +60,29 @@ Measured on the live API (2026-11, `scripts/ge_check_registry.py`):
    legitimate business contact only, never profiled, never shared. The
    register is statistical, not the legal register: only a NAPR extract has
    legal force, and the source must be cited (საქსტატი).
+
+## Two sources, one database
+
+| | `georgia_registry` | `georgia_osm` |
+|---|---|---|
+| Knows | every legal entity, id code, director, size, registration date | businesses with a website tag, phone, address |
+| Blind to | websites (sparse `web` field) | many legal entities, most small ones |
+| Offer it makes possible | a site, a landing, a booking flow | SEO, redesign, chatbot, payments — because there is a site to audit |
+
+Neither is enough alone. A pipeline fed only by the register sells websites to
+everyone (measured: 93 of 94 leads came out as "business_site"). A pipeline fed
+only by OSM skips the majority of the market. Run both:
+
+```bash
+harvey discover --provider georgia_registry --city ბათუმი --limit 50
+harvey discover --provider georgia_osm      --city ბათუმი --limit 30
+harvey profile        # free: reads the sites, records SITE_PAGE_COUNT, BLOG_STALE, NO_SCHEMA_MARKUP, SERP_RANK evidence
+harvey export         # now each row carries its service + price band
+```
+
+Then `harvey/services.py` decides the offer per company from the evidence — and
+says nothing when there is no evidence, which is why `harvey profile` has to
+run before the outbox is worth reading.
 
 ## How this relates to `ordo-mcp`
 

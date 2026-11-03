@@ -14,9 +14,10 @@ import io
 from harvey.config import ComplianceConfig, live_do_not_contact
 from harvey.fit import company_fit, current_roles
 from harvey.gate import do_not_contact_match
+from harvey.services import primary_service, summarise
 
 COLUMNS = [
-    "company", "website", "sector", "area", "fit", "why_selected",
+    "company", "website", "sector", "area", "fit", "services", "why_selected",
     "status", "why_not_contacted", "contacts", "contact_form", "hiring",
     "found_via", "first_found",
 ]
@@ -137,6 +138,10 @@ async def build_register(query_db, config, company_id: str | None = None) -> lis
             # id and fit_reasons are for the dashboard; the CSV leaves them out.
             "id": cid,
             "fit_reasons": reasons,
+            # Which of our services the evidence supports, strongest first.
+            # Empty string, not a guess: no evidence means no pitch.
+            "services": summarise(c, obs),
+            "primary_service": (primary_service(c, obs) or {}).get("key", ""),
             "company": c.get("name") or c.get("domain") or "",
             "website": c.get("website") or (f"https://{c['domain']}" if c.get("domain") else ""),
             "sector": sector,
