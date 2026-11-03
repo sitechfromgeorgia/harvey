@@ -63,11 +63,24 @@ row is kept only when its own text names the city.
 `GE_ID_CODE` is the join. After a seed run:
 
 ```bash
-python scripts/ge_seed.py --city ბათუმი --limit 400 --pages 40
-python scripts/ge_dedupe.py          # same business from two sources
-python scripts/ge_sector_report.py   # where the reachable volume now is
-python scripts/ge_leads_csv.py       # the list, by priority
+python scripts/ge_seed.py --city ბათუმი --limit 300
+python scripts/ge_merge.py --apply       # one legal entity, one row
+python scripts/ge_dedupe.py              # same business, different name
+python scripts/ge_sector_report.py       # where the reachable volume now is
+python scripts/ge_leads_csv.py           # the list, by priority
 ```
+
+Measured on the first live seed (2026-11-03, Batumi + Kobuleti, 14 categories):
+
+```
+69 company pages read → 77 new companies, 239 observations
+51 with a phone · 26 of them the same legal entity the register already had
+```
+
+The 26 were merged on their id code (`scripts/ge_merge.py`), so the register row
+inherited the phone instead of the database holding the company twice. The 51
+with no register match are the interesting ones: businesses the statistical
+register lists without a phone, which the directory knows how to reach.
 
 A seeded row with a phone but no register match is still useful: the phone is
 how Batumi answers. A register row with a `taxID` that matches a seeded row
