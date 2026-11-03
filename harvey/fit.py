@@ -32,6 +32,37 @@ def _hiring_terms(icp) -> list[str]:
     return [t.strip().lower() for t in (getattr(icp, "hiring_signals", None) or []) if t.strip()]
 
 
+def _nace_for(term: str) -> str:
+    """NACE code an ICP word means, when Georgia's mapping knows it."""
+    try:
+        from harvey.collectors.georgia import nace_for
+        return nace_for(term)
+    except Exception:            # noqa: BLE001 — a missing mapping is not a crash
+        return ""
+
+
+def sector_matches(industry: str, industries: set[str]) -> bool:
+    """Does this company's industry answer to one of the ICP's words?
+
+    Three ways, cheapest first: the word appears in the industry string
+    ("სასტუმრო" in "55.10.2 სასტუმროები და განთავსების…"), or the industry
+    string appears in the word, or the word's NACE code is the industry's
+    prefix ("სასტუმრო" → 55.10 → "55.10.2 …").
+    """
+    low = (industry or "").lower()
+    if not low:
+        return False
+    code = low[:5] if low[:2].isdigit() else ""
+    for term in industries:
+        if not term:
+            continue
+        if term in low or (len(low) >= 6 and low in term):
+            return True
+        if code and _nace_for(term).startswith(code):
+            return True
+    return False
+
+
 def _role_matches(text: str, terms: list[str]) -> str:
     """The first hiring term found in ``text`` as whole words, or ""."""
     low = (text or "").lower()
@@ -66,9 +97,17 @@ def company_fit(company: dict, prospects: list[dict], observations: list[dict],
     score, reasons = 0, []
 
     industries = {i.strip().lower() for i in (icp.industries or [])}
-    if (company.get("industry") or "").strip().lower() in industries:
+    industry = (company.get("industry") or "").strip()
+    if industry.lower() in industries:
         score += SECTOR
-        reasons.append(f"sector: {company['industry']}")
+        reasons.append(f"sector: {industry}")
+    elif sector_matches(industry, industries):
+        # The register answers with a NACE string ("55.10.2 სასტუმროები…"),
+        # the ICP is written in words ("სასტუმრო"). Without this every Georgian
+        # lead scored zero on sector and the ranking was decided by phone number
+        # luck alone.
+        score += SECTOR
+        reasons.append(f"sector: {industry[:48]}")
 
     # Someone who opted out or is on the list won't be written to: they
     # don't make the company reachable.
