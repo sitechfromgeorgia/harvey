@@ -539,6 +539,9 @@ async def get_companies():
             if r:
                 c["fit"], c["fit_reasons"] = r["fit"], r["fit_reasons"]
                 c["register_status"], c["register_why"] = r["status"], r["why_not_contacted"]
+                # Which of our services the evidence supports. The dashboard
+                # shows it so the next call is chosen from evidence, not memory.
+                c["services"], c["primary_service"] = r.get("services", ""), r.get("primary_service", "")
         rows.sort(key=lambda c: c.get("fit", 0), reverse=True)
     except Exception as e:
         # A config that won't load must not take the Companies tab down with it.

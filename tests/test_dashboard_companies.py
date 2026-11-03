@@ -85,7 +85,7 @@ def test_register_csv_lists_every_company(client):
     assert resp.status_code == 200
     assert "company-register.csv" in resp.headers["content-disposition"]
     lines = resp.text.lstrip("﻿").splitlines()
-    assert lines[0].startswith("company,website,sector,area,fit,why_selected,status")
+    assert lines[0].startswith("company,website,sector,area,fit,services,why_selected,status")
     assert len(lines) == 4
     assert "Quiet Mill" in resp.text and "Not processed yet" in resp.text
 

@@ -2021,6 +2021,7 @@ function renderCompaniesPage(page) {
   const start = _companiesPage * COMPANIES_PER_PAGE;
   let html = '<div class="table-card"><table class="nowrap"><thead><tr><th>Company</th>' +
     '<th title="Company fit, 0-100: sector, decision maker, reachability, buying signal. Hover a score for why.">Fit</th>' +
+    '<th title="The service the evidence supports, strongest first — with its price band. Empty means no evidence yet, not no offer.">Offer</th>' +
     '<th title="Hover a status for why the company was or wasn\'t contacted">Status</th>' +
     '<th>Industry</th><th>Location</th><th class="num">Contacts</th><th>Added</th></tr></thead><tbody>';
   data.slice(start, start + COMPANIES_PER_PAGE).forEach((c, j) => {
@@ -2035,6 +2036,8 @@ function renderCompaniesPage(page) {
         '<span class="cell-sub">' + domain + '</span></div></td>' +
       '<td title="' + escHtml((c.fit_reasons || []).join(' · ')) + '">' +
         (typeof c.fit === 'number' ? meterHtml(c.fit) : '') + '</td>' +
+      '<td title="' + escHtml(c.services || '') + '">' +
+        (c.services ? '<span class="tag">' + escHtml(c.services.split(' (')[0]) + '</span>' : '<span class="muted">—</span>') + '</td>' +
       '<td title="' + escHtml(c.register_why || '') + '">' + escHtml(c.register_status || '') + '</td>' +
       '<td>' + (c.industry ? '<span class="tag">' + escHtml(c.industry) + '</span>' : '') + '</td>' +
       '<td>' + escHtml(c.location) + '</td>' +
@@ -2084,6 +2087,7 @@ function companyInfoCard(company, profile) {
     row('Website', link(website, c.domain || website)) +
     row('Sector', escHtml(c.industry)) +
     row('Area', escHtml(c.location)) +
+    row('Services', escHtml(reg.services || '')) +
     row('Why selected', escHtml(reg.why_selected || (company.fit_reasons || []).join(' · '))) +
     row('Status', '<b>' + escHtml(reg.status || company.register_status || '') + '</b>' +
       (reg.why_not_contacted || company.register_why ? ' — ' + escHtml(reg.why_not_contacted || company.register_why) : '')) +
