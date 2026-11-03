@@ -368,6 +368,10 @@ class Business:
     source_url: str = ""
     provider: str = ""
     raw_title: str = ""             # SERP evidence for junk filtering before normalization
+    # Registry-native facts that have no first-class field here (a Georgian
+    # identification code, a legal form, a declared size, a director). Shape:
+    # {code: (value_num, value_text, confidence)}.
+    extra_signals: dict = field(default_factory=dict)
 
     def identity(self) -> str:
         return self.domain or self.external_id
@@ -1455,6 +1459,11 @@ class ScavioSearch(ScavioProvider):
         return out
 
 
+# Georgia's statistical business register. Imported here rather than at the
+# top: that module imports Business/DiscoveryProvider from this one, and a
+# top-level import would close the cycle before they exist.
+from harvey.collectors.georgia import GeorgiaRegistry  # noqa: E402
+
 PROVIDERS: dict[str, DiscoveryProvider] = {
     p.key: p for p in (
         OpenStreetMap(),
@@ -1465,6 +1474,9 @@ PROVIDERS: dict[str, DiscoveryProvider] = {
         Serper(),
         ScavioMaps(),
         ScavioSearch(),
+        # Georgia's own register. Imported here, after Business and
+        # DiscoveryProvider exist, because that module imports this one.
+        GeorgiaRegistry(),
     )
 }
 
@@ -1965,6 +1977,10 @@ def _observations(biz: Business, company_id: str, confirmed: set[str],
         return rows
 
     add("FOUND_IN_SERP", text=biz.provider)
+    # Registry-native facts (Georgia today; any provider may carry them). Each
+    # is a real observation row, so it is queryable and keeps its confidence.
+    for code, (num, text, conf) in (biz.extra_signals or {}).items():
+        add(code, num=num, text=text or "", conf=conf)
     if biz.has_website is False:
         add("NO_WEBSITE", num=1.0)
     if biz.is_claimed is False:

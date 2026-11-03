@@ -32,6 +32,16 @@ confirmed signals, searching contacts, and the same screen in dark mode:
 
 ---
 
+## This fork: Georgia
+
+`sitechfromgeorgia/harvey` adds the Georgian market: a discovery provider that
+reads the Geostat statistical business register (identification code, legal
+form, declared size, director, registration date — free, no key), ten registry
+signals, a Georgian outreach playbook, and Georgian opt-out recognition on both
+the footer and the reply. `NO_WEBSITE` is deliberately *not* claimed from an
+empty register field: that is `GE_WEB_MISSING` at 0.6 confidence, confirmed by
+the free profile stage. Details: [docs/georgia.md](docs/georgia.md).
+
 ## Table of contents
 
 - [Why the subscription thing matters](#why-the-subscription-thing-matters)

@@ -83,7 +83,9 @@ NO_THANKS_RE = re.compile(
 BARE_OPT_OUTS = {"stop", "unsubscribe", "remove", "remove me", "opt out",
                  "no thanks", "no thank you", "baja", "no gracias", "de baja", "dar de baja",
                  "darme de baja",
-                 "הסר", "הסירו", "הסירי", "תסיר", "תסירו", "להסיר", "הסרה", "להסרה"}
+                 "הסר", "הסירו", "הסירי", "תסיר", "תסירו", "להסיר", "הסרה", "להסרה",
+                 # Georgian, in the form the footer asks for.
+                 "ნუ მწერთ", "ნუ მოგვწერთ", "მოხსენით", "გააუქმეთ"}
 # Said around a bare opt-out without changing it ("הסר בבקשה", "הסר, תודה").
 _BARE_COURTESIES = {"בבקשה", "נא", "תודה", "רבה", "por", "favor", "gracias", "saludos"}
 _MOBILE_SIGNATURE_RE = re.compile(
@@ -320,9 +322,35 @@ class OurText:
         return "\n".join(kept)
 
 
+# Georgian opt-outs, matched as phrases. A bare "არა" is never enough — it is
+# the no in "არა, საინტერესოა" (no, it's interesting) — and "არ მინდა
+# პრემიუმ პაკეტი" is a negotiation, not a goodbye. Every pattern below names
+# the sender or the sending itself, which is what makes it final.
+GEORGIAN_OPT_OUT_PATTERNS = tuple(re.compile(p) for p in (
+    r"ნუ\s+მ(?:ომ|ოგვ)?წერთ",              # ნუ მწერთ / ნუ მომწერთ / ნუ მოგვწერთ
+    r"აღარ\s+მ(?:ომ|ოგვ)?წეროთ",           # აღარ მომწეროთ
+    r"მოხსენით\s+(?:სიიდან|ჩემი|ჩვენი)",
+    r"გ(?:ა)?აუქმეთ\s+გამოწერა",
+    r"გამოწერის\s+გაუქმება",
+    r"შეწყვიტეთ\s+გამოგზავნა",
+    r"შემაწყვიტეთ",
+    r"ნუ\s+შემაწუხებთ",
+    r"არ\s+გვაინტერესებს",
+    r"(?<!ჯერ )(?<!ჯერ)არ\s+მაინტერესებს",
+))
+
+
+def _georgian_opt_out(flat: str):
+    """The first Georgian opt-out phrase in flat text, or None."""
+    for pattern in GEORGIAN_OPT_OUT_PATTERNS:
+        m = pattern.search(flat)
+        if m:
+            return m
+    return None
+
+
 def _opt_out_reason(their_text: str, own_words: str) -> dict | None:
     """Which opt-out rule their reply trips, and on what words, or None.
-
     their_text: everything they wrote, our text removed. own_words: their
     reply without the quote. Longer phrases match across a line wrap; "no
     thanks" only within a line. The result is kept with the opt-out so a
@@ -332,6 +360,10 @@ def _opt_out_reason(their_text: str, own_words: str) -> dict | None:
         if p in flat:
             return {"rule": "phrase", "matched": p,
                     "why": f'Their reply contains "{p}".'}
+    m = _georgian_opt_out(flat)
+    if m:
+        return {"rule": "phrase", "matched": m.group(0),
+                "why": f'Their reply contains "{m.group(0)}".'}
     m = _hebrew_opt_out(flat)
     if m:
         return {"rule": "phrase", "matched": m.group(0),

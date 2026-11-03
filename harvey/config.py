@@ -429,12 +429,24 @@ OPT_OUT_WORDS = ("no thanks", "no thank you", "unsubscribe", "stop", "remove me"
 HEBREW_OPT_OUT_WORDS = ("הסר", "הסירו", "הסרה", "לא תודה", "הסירו אותי", "תורידו אותי")
 # The same in Spanish ('Responda "no, gracias"', 'Responda BAJA').
 SPANISH_OPT_OUT_WORDS = ("no gracias", "baja", "darme de baja")
+# The same in Georgian. Only phrases, never the bare "არა": "არა, საინტერესოა"
+# is a yes. Each one leaves no room to read it as anything but an opt-out.
+GEORGIAN_OPT_OUT_WORDS = ("არ მინდა", "არ გვინდა", "ნუ მწერთ", "ნუ მოგვწერთ",
+                          "მოხსენით სიიდან", "გააუქმეთ გამოწერა", "შემაწყვიტეთ")
 _OPT_OUT_WORD_RE = "(?:" + "|".join(
     r"[\s,]+".join(map(re.escape, w.split()))
     for w in OPT_OUT_WORDS + HEBREW_OPT_OUT_WORDS + SPANISH_OPT_OUT_WORDS) + ")"
 _ASKS_FOR_OPT_OUT_RE = re.compile(
     r"\b(?:reply(?:\s+with)?|(?:responda|responde|respondan|conteste|contesta|escriba)(?:\s+con)?)"
     r"\s*[\"'\u201c\u2018]?\s*" + _OPT_OUT_WORD_RE + r"\b", re.IGNORECASE)
+# Georgian: "უპასუხეთ \"ნუ მწერთ\"", 'მოწერეთ "არ მინდა"'. Georgian has no word
+# boundaries to lean on, so the ask-verb and the phrase are matched as literal
+# alternatives and the phrase must follow the verb closely.
+_ASKS_FOR_OPT_OUT_KA_RE = re.compile(
+    r"(?:უპასუხეთ|მიპასუხეთ|დამიწერეთ|მოგვწერეთ|მოწერეთ|მითხარით|გამოგზავნეთ)"
+    r"\s*[«\"'\u201c\u2018]?\s*(?:"
+    + "|".join(r"\s*".join(map(re.escape, w.split())) for w in GEORGIAN_OPT_OUT_WORDS)
+    + r")", re.IGNORECASE)
 # Reply / answer / write / tell me, then a few words at most ("במייל חוזר").
 _ASKS_FOR_OPT_OUT_HE_RE = re.compile(
     r"(?<!\w)ו?(?:השיב[וי]?|השב|תשיב[וי]?|ענ[הוי]|תענ[הוי]|כתוב|כתב[וי]|תכתוב|תכתב[וי]"
@@ -510,12 +522,14 @@ class ComplianceConfig(BaseModel):
                 "opt_out_line can't contain a link or an email address: cold email "
                 "allows one link, and opting out must be as simple as replying."
             )
-        if not (_ASKS_FOR_OPT_OUT_RE.search(v) or _ASKS_FOR_OPT_OUT_HE_RE.search(v)):
+        if not (_ASKS_FOR_OPT_OUT_RE.search(v) or _ASKS_FOR_OPT_OUT_HE_RE.search(v)
+                or _ASKS_FOR_OPT_OUT_KA_RE.search(v)):
             raise ValueError(
                 "opt_out_line must ask for a reply Harvey recognises as an opt-out, "
-                'e.g. Reply "no thanks" / Reply STOP, in Hebrew השיבו "הסר", or in Spanish Responda BAJA. Recognised: '
+                'e.g. Reply "no thanks" / Reply STOP, in Hebrew השיבו "הסר", in Spanish Responda BAJA,'
+                ' or in Georgian უპასუხეთ "ნუ მწერთ". Recognised: '
                 + ", ".join(f'"{w}"' for w in OPT_OUT_WORDS + HEBREW_OPT_OUT_WORDS
-                            + SPANISH_OPT_OUT_WORDS) + "."
+                            + SPANISH_OPT_OUT_WORDS + GEORGIAN_OPT_OUT_WORDS) + "."
             )
         return v
 

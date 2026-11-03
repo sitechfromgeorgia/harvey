@@ -384,6 +384,152 @@ SIGNAL_CATALOG: list[dict] = [
         "cost_note": "free (site HTML)",
         "confidence_floor": 0.0,
     },
+
+    # ── Georgia: the statistical business register (Geostat) ──
+    # These exist because no global provider knows them. They are authoritative
+    # enough to build an email on ("შპს X, ს/კ 405..., ხელმძღვანელი N. N."),
+    # and they cost nothing. Personal data: a head's name is used only for a
+    # legitimate business contact under the Law on Personal Data Protection.
+    {
+        "code": "GE_ID_CODE",
+        "label": "საიდენტიფიკაციო კოდი (ს/კ)",
+        "description": (
+            "The company's 9-digit identification code from the statistical "
+            "register. The one identifier that survives a rename, and what "
+            "cross-checks the same entity in NAPR, companyinfo and the court "
+            "registers."
+        ),
+        "category": "verification",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_LEGAL_FORM",
+        "label": "სამართლებრივი ფორმა",
+        "description": (
+            "შპს / სს / ინდივიდუალური მეწარმე / ა(ა)იპ. Budget and buying "
+            "process follow the form: an individual entrepreneur decides alone "
+            "and pays from a personal account, an LLC has an accounting "
+            "function, a non-profit buys through a tender."
+        ),
+        "category": "profile",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_SIZE",
+        "label": "საწარმოს ზომა (საქსტატი)",
+        "description": (
+            "Declared size band — მცირე / საშუალო / მსხვილი. A declared "
+            "small entity is the 300-1,500 GEL website buyer; a large one is a "
+            "different conversation and a different proposal."
+        ),
+        "category": "profile",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_ACTIVITY",
+        "label": "საქმიანობა (NACE)",
+        "description": (
+            "The registered NACE rev.2 activity — the register's own words for "
+            "what the business does. Use it in the email instead of guessing a "
+            "category from a listing."
+        ),
+        "category": "profile",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_REGISTERED",
+        "label": "რეგისტრაციის თარიღი",
+        "description": (
+            "When the entity was first registered. Age is a qualifier: a "
+            "20-year-old guesthouse has survived without a site for 20 years, "
+            "a two-month-old one is still building its stack."
+        ),
+        "category": "profile",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_NEW_REGISTRATION",
+        "label": "ახლად რეგისტრირებული (≤12 თვე)",
+        "description": (
+            "Registered within the last 12 months. The best trigger there is "
+            "for anyone selling a first website, a logo or a booking page: "
+            "they are assembling exactly that stack right now."
+        ),
+        "category": "discovery",
+        "value_type": "bool",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_HEAD",
+        "label": "ხელმძღვანელი (რეესტრიდან)",
+        "description": (
+            "The director's name as the register records it. Not scraped from "
+            "a team page and not guessed: this is the person the state thinks "
+            "runs the company, which is who signs a contract. Personal data — "
+            "legitimate business contact only."
+        ),
+        "category": "people",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_PHONE",
+        "label": "ტელეფონი (რეესტრიდან)",
+        "description": "Phone number as declared to the statistical register.",
+        "category": "people",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_EMAIL",
+        "label": "ელფოსტა (რეესტრიდან)",
+        "description": (
+            "E-mail declared to the register. Present for a minority of small "
+            "entities, but when present it is usually the owner's own mailbox "
+            "— which is exactly the inbox worth reaching."
+        ),
+        "category": "people",
+        "value_type": "text",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.0,
+    },
+    {
+        "code": "GE_WEB_MISSING",
+        "label": "რეესტრში საიტი არ არის მითითებული",
+        "description": (
+            "The register has no web field for this entity. Recorded at 0.6 "
+            "confidence, deliberately NOT as NO_WEBSITE: a small business "
+            "often has a site and never told the state. The profile stage "
+            "confirms it for free before it goes in an email."
+        ),
+        "category": "profile",
+        "value_type": "bool",
+        "collector": "discover",
+        "cost_note": "free (Geostat open API)",
+        "confidence_floor": 0.6,
+    },
 ]
 
 
