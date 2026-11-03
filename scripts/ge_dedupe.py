@@ -32,6 +32,19 @@ LEGAL_PREFIX = re.compile(
 NOISE = re.compile(r"[^\w\s]", re.UNICODE)
 SPACES = re.compile(r"\s+")
 HOTEL_WORDS = ("სასტუმრო", "hotel", "guest", "house", "hostel", "apart", "ოტელი")
+# Words that name a place or a sector, not a business. A match on one of these
+# alone is noise: "ბათუმი" is inside half the company names in Batumi.
+GENERIC = {
+    "ბათუმი", "ქობულეთი", "თბილისი", "აჭარა", "საქართველო",
+    "ბათუმის", "ქობულეთის", "თბილისის", "აჭარის", "საქართველოს",
+    "სასტუმრო", "რესტორანი", "კაფე", "ბარი", "სალონი", "სილამაზის",
+    "სტომატოლოგია", "კლინიკა", "აფთიაქი", "სუპერმარკეტი", "მაღაზია",
+    "უძრავი", "ქონება", "მშენებლობა", "ავტო", "გაქირავება", "ქირაობა",
+    "ავტომობილების", "ტურისტული", "სააგენტო", "სპორტული", "დარბაზი",
+    "განათლება", "ინდივიდუალური", "მეწარმე", "ცენტრი", "კომპანია",
+    "ჯგუფი", "გრუპ", "group", "company", "center", "centre", "hotel",
+    "restaurant", "cafe", "bar", "shop", "store", "clinic", "pharmacy",
+}
 
 
 def norm_name(name: str) -> str:
@@ -64,6 +77,12 @@ def load(db_path: str) -> list[dict]:
     return companies
 
 
+def distinctive(name: str) -> str:
+    """The part of a name that is a business, not a place or a sector."""
+    toks = [t for t in norm_name(name).split() if t not in GENERIC and len(t) >= 3]
+    return " ".join(toks)
+
+
 def find(companies: list[dict]) -> list[dict]:
     groups: list[dict] = []
     by_phone: dict[str, list[dict]] = {}
@@ -73,20 +92,27 @@ def find(companies: list[dict]) -> list[dict]:
             by_phone.setdefault(key, []).append(c)
     for key, items in by_phone.items():
         if len(items) > 1:
-            groups.append({"rule": "phone", "evidence": f"+...{key}", "items": items})
+            # A phone shared by two register entities is usually two companies
+            # at one address, not a duplicate; across sources it usually is one.
+            sources = {i.get("source", "") for i in items}
+            groups.append({"rule": "phone" if len(sources) > 1 else "shared_phone",
+                           "evidence": f"+...{key}", "items": items})
 
     seen = {frozenset((a["id"], b["id"])) for g in groups
             for a, b in combinations(g["items"], 2)}
-    named = [c for c in companies if norm_name(c.get("name") or "")]
+    named = [c for c in companies if distinctive(c.get("name") or "")]
     for a, b in combinations(named, 2):
         pair = frozenset((a["id"], b["id"]))
         if pair in seen:
             continue
-        na, nb = norm_name(a["name"]), norm_name(b["name"])
+        na, nb = distinctive(a["name"]), distinctive(b["name"])
         if not na or not nb:
             continue
         short, long_ = (na, nb) if len(na) <= len(nb) else (nb, na)
-        if len(short) >= 6 and short in long_ and (a.get("location") == b.get("location")):
+        # At least two distinctive tokens, or one long one: "მიმინო" inside
+        # "მიმინო ავტო გაქირავება" is a duplicate, "ბათუმი" is not.
+        solid = len(short.split()) >= 2 or len(short) >= 8
+        if len(short) >= 5 and solid and short in long_ and (a.get("location") == b.get("location")):
             groups.append({"rule": "name", "evidence": f"{short!r} ⊂ {long_!r}",
                            "items": [a, b]})
             seen.add(pair)
