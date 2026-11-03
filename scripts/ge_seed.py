@@ -106,6 +106,102 @@ def to_company(org: dict, url: str, city: str,
     return company, {k: v for k, v in signals.items() if v}
 
 
+MADLOBA_BASE = "https://madloba.info"
+MADLOBA_CITY = {"batumi": "ბათუმი", "kobuleti": "ქობულეთი", "tbilisi": "თბილისი",
+                "kutaisi": "ქუთაისი"}
+MADLOBA_CATEGORY = {
+    "hotels": "სასტუმრო", "restaurants": "რესტორანი", "construction-companies": "მშენებლობა",
+    "beauty-salons": "სილამაზის სალონი", "dentistry": "სტომატოლოგია",
+    "medical-centers": "კლინიკა", "pharmacies": "აფთიაქი", "car-rental": "ავტომობილების ქირაობა",
+    "travel-agencies": "ტურისტული სააგენტო", "fitness-clubs": "სპორტული დარბაზი",
+    "schools": "განათლება", "supermarkets": "სუპერმარკეტი",
+}
+_ARTICLE_RE = re.compile(r'<article id="organization-(\d+)".*?</article>', re.S)
+_FIELD = {
+    "name": re.compile(r'organization-item__title">(.*?)</h3>', re.S),
+    "address": re.compile(r'organization-item__address">(.*?)</address>', re.S),
+    "phones": re.compile(r'organization-item__phones">(.*?)</p>', re.S),
+    "description": re.compile(r'organization-item__description">(.*?)</div>', re.S),
+    "href": re.compile(r'class="organization-item"\s+href="([^"]+)"'),
+}
+
+
+def _text(raw: str) -> str:
+    from html import unescape
+    return " ".join(unescape(TAG_RE.sub(" ", raw or "")).split())
+
+
+def madloba_cards(html: str) -> list[dict]:
+    """Cards from a madloba.info category page — no detail fetch needed."""
+    out = []
+    for match in _ARTICLE_RE.finditer(html):
+        ident, block = match.group(1), match.group(0)
+        card = {"ident": ident}
+        for key, pattern in _FIELD.items():
+            m = pattern.search(block)
+            card[key] = m.group(1) if m else ""
+        card["name"] = _text(card["name"])
+        card["address"] = _text(card["address"])
+        card["description"] = _text(card["description"])
+        phones = re.findall(r"\+?\d[\d\s\-()]{7,}", _text(card["phones"]))
+        card["phone"] = phones[0].strip() if phones else ""
+        if card["name"]:
+            out.append(card)
+    return out
+
+
+async def run_madloba(paths: list[str], pages: int, limit: int, db: str) -> int:
+    """Seed from madloba.info: the phone is on the listing card, so one request
+    per 16 businesses instead of one per business."""
+    store = StateManager(db)
+    await store.init_db()
+    inserted, rows = 0, []
+    async with httpx.AsyncClient(headers={"User-Agent": UA, "Accept-Language": "ka,en"},
+                                 follow_redirects=True, timeout=TIMEOUT) as client:
+        for path in paths[:limit]:
+            city_slug, _, cat_slug = path.partition("/")
+            city = MADLOBA_CITY.get(city_slug, city_slug)
+            category = MADLOBA_CATEGORY.get(cat_slug, cat_slug)
+            for page in range(1, pages + 1):
+                url = f"{MADLOBA_BASE}/ka/{path}/?page={page}"
+                resp = await client.get(url)
+                await asyncio.sleep(PAUSE)
+                if resp.status_code != 200:
+                    print(f"  ! {path} page {page}: HTTP {resp.status_code}")
+                    break
+                found = madloba_cards(resp.text)
+                print(f"  {path[:34]:34s} page {page}: {len(found)} cards")
+                if not found:
+                    break
+                for card in found:
+                    company = Company(
+                        name=card["name"][:120],
+                        phone=card["phone"],
+                        description=card["description"][:400],
+                        industry=category,
+                        location=city,
+                        source="seed:madloba",
+                        source_url=MADLOBA_BASE + (card["href"] or ""),
+                        external_id=f"madloba:{card['ident']}",
+                    )
+                    new = not company.id
+                    cid = await store.add_company(company)
+                    if new:
+                        inserted += 1
+                    for code, text in (("GE_PHONE", card["phone"]),
+                                       ("GE_ACTIVITY", category)):
+                        if text:
+                            rows.append({"company_id": cid, "signal_code": code,
+                                         "collector": "seed", "value_text": text,
+                                         "confidence": 1.0,
+                                         "evidence_url": MADLOBA_BASE + (card["href"] or "")})
+    if rows:
+        await store.add_observations(rows)
+    print(f"\nseed(madloba): {len(paths)} categories · {inserted} new companies · "
+          f"{len(rows)} observations")
+    return 0
+
+
 async def run(city: str, categories: list[str], limit: int, pages: int, db: str) -> int:
     store = StateManager(db)
     await store.init_db()
@@ -175,13 +271,22 @@ async def run(city: str, categories: list[str], limit: int, pages: int, db: str)
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--source", default="compania", choices=("compania", "madloba"))
     ap.add_argument("--city", default="ბათუმი")
     ap.add_argument("--categories", default="",
                     help="comma-separated Georgian categories (default: the ICP's industries)")
+    ap.add_argument("--paths", default="",
+                    help="madloba only: comma-separated city/category slugs, "
+                         "e.g. batumi/hotels,batumi/restaurants")
     ap.add_argument("--limit", type=int, default=300)
     ap.add_argument("--pages", type=int, default=4)
     ap.add_argument("--db", default="data/harvey.db")
     args = ap.parse_args()
+
+    if args.source == "madloba":
+        paths = [p.strip() for p in args.paths.split(",") if p.strip()] or [
+            "batumi/hotels", "batumi/restaurants", "batumi/construction-companies"]
+        return asyncio.run(run_madloba(paths, args.pages, args.limit, args.db))
 
     if args.categories:
         categories = [c.strip() for c in args.categories.split(",") if c.strip()]
