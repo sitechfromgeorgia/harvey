@@ -14,7 +14,7 @@ import io
 from harvey.config import ComplianceConfig, live_do_not_contact
 from harvey.fit import company_fit, current_roles
 from harvey.gate import do_not_contact_match
-from harvey.services import primary_service, summarise
+from harvey.services import SERVICE_SIGNALS, primary_service, summarise
 
 COLUMNS = [
     "company", "website", "sector", "area", "fit", "services", "why_selected",
@@ -115,7 +115,9 @@ async def build_register(query_db, config, company_id: str | None = None) -> lis
     observations = await query_db(
         "SELECT company_id, signal_code, value_text, value_num, observed_at FROM observations "
         "WHERE signal_code IN "
-        "('DECISION_MAKER_TITLE', 'CONTACT_FORM_URL', 'HIRING_ROLE')" + one.format(col="company_id"), args)
+        "('DECISION_MAKER_TITLE', 'CONTACT_FORM_URL', 'HIRING_ROLE'"
+        + "".join(f", '{code}'" for code in SERVICE_SIGNALS) + ")"
+        + one.format(col="company_id"), args)
     by_p: dict[str, list] = {}
     by_o: dict[str, list] = {}
     by_obs: dict[str, list] = {}

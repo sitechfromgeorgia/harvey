@@ -85,6 +85,19 @@ SERVICE_BY_KEY = {s["key"]: s for s in SERVICES}
 BLOG_STALE_DAYS = 180
 
 
+# Observation codes this module reads. The register's own query has to fetch
+# them, or the fit is computed against a truncated set and every company looks
+# like it has no evidence (this was a real bug: 17 site-bearing companies came
+# out empty because the query only pulled the ICP-fit codes).
+SERVICE_SIGNALS = (
+    "SERP_RANK", "IN_LOCAL_PACK", "MAPS_RANK", "NO_WEBSITE",
+    "GE_WEB_MISSING", "GE_SOCIAL_ONLY", "GE_SIZE", "GE_ACTIVITY",
+    "GE_NEW_REGISTRATION", "SITE_PAGE_COUNT", "BLOG_STALE",
+    "NO_SCHEMA_MARKUP", "NO_ONLINE_BOOKING", "RUNNING_GOOGLE_ADS",
+    "RUNNING_META_ADS", "BLOCKS_AI_CRAWLERS", "TECH_STACK",
+)
+
+
 def _obs_map(observations: list[dict]) -> dict[str, dict]:
     """Latest observation per signal code (observations arrive newest-last)."""
     out: dict[str, dict] = {}
