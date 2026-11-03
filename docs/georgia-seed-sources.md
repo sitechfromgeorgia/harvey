@@ -73,14 +73,29 @@ python scripts/ge_leads_csv.py           # the list, by priority
 Measured on the first live seed (2026-11-03, Batumi + Kobuleti, 14 categories):
 
 ```
-69 company pages read → 77 new companies, 239 observations
-51 with a phone · 26 of them the same legal entity the register already had
+compania.ge   69 pages →  77 companies, 239 observations, 51 with a phone
+              26 of them the same legal entity the register already had → merged
+madloba.info  36 pages → 288 companies, 562 observations, 274 with a phone
+              (12 categories; 4 slugs 404 — the directory uses Russian
+               transliterations, recorded rather than skipped)
 ```
 
-The 26 were merged on their id code (`scripts/ge_merge.py`), so the register row
-inherited the phone instead of the database holding the company twice. The 51
-with no register match are the interesting ones: businesses the statistical
-register lists without a phone, which the directory knows how to reach.
+Reachability across the whole database, before and after the seed layer:
+
+```
+              companies   reachable
+register          1,835         584
+OSM                 359          25
+compania             51          35
+madloba             288         274
+                 ──────      ──────
+total             2,533         918   (36%, was 27%)
+```
+
+The 26 compania rows were merged on their id code (`scripts/ge_merge.py`), so the
+register row inherited the phone instead of the database holding the company
+twice. `scripts/ge_reachability.py` prints the table above; it is the number that
+decides whether prospecting is possible at all.
 
 A seeded row with a phone but no register match is still useful: the phone is
 how Batumi answers. A register row with a `taxID` that matches a seeded row
