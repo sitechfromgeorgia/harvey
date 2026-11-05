@@ -115,6 +115,11 @@ MADLOBA_CATEGORY = {
     "medical-centers": "კლინიკა", "pharmacies": "აფთიაქი", "car-rental": "ავტომობილების ქირაობა",
     "travel-agencies": "ტურისტული სააგენტო", "fitness-clubs": "სპორტული დარბაზი",
     "schools": "განათლება", "supermarkets": "სუპერმარკეტი",
+    # Real slugs found on the city page (the directory uses Russian
+    # transliterations, so the English guesses above mostly 404).
+    "sportivnyye-kompleksy": "სპორტული დარბაზი",
+    "sports-organizations-batumi": "სპორტული დარბაზი",
+    "markets": "სუპერმარკეტი",
 }
 _ARTICLE_RE = re.compile(r'<article id="organization-(\d+)".*?</article>', re.S)
 _FIELD = {
@@ -202,6 +207,83 @@ async def run_madloba(paths: list[str], pages: int, limit: int, db: str) -> int:
     return 0
 
 
+YPPO_BASE = "https://www.yp.com.ge"
+_YP_ARTICLE = re.compile(r'<article class="com-content-category-blog__item.*?</article>', re.S)
+_YP_FIELDS = {
+    "name": re.compile(r'aria-label="Read more:\s*([^"]+)"'),
+    "ident": re.compile(r'/en/organizations/org-(\d+)-en'),
+    "address": re.compile(r'item-other-content-inner">\s*<p>(.*?)</p>', re.S),
+    "phone": re.compile(r'href="tel:([^"]+)"'),
+    "website": re.compile(r'Website:\s*<a href="([^"]+)"'),
+    "category": re.compile(r'tag-list1"[^>]*>\s*([^<]+?)\s*</li>'),
+}
+
+
+def yp_cards(html: str) -> list[dict]:
+    """Cards from a yp.com.ge listing page (Joomla, 20 per page)."""
+    out = []
+    for block in _YP_ARTICLE.findall(html):
+        card = {}
+        for key, pattern in _YP_FIELDS.items():
+            m = pattern.search(block)
+            card[key] = _text(m.group(1)) if m else ""
+        if card.get("name") and card.get("ident"):
+            out.append(card)
+    return out
+
+
+async def run_yp(city: str, pages: int, db: str) -> int:
+    """Seed from yp.com.ge. The listing carries name, address, phone website —
+    no detail request, and `?start=` is the whole pagination."""
+    store = StateManager(db)
+    await store.init_db()
+    inserted, rows = 0, []
+    async with httpx.AsyncClient(headers={"User-Agent": UA, "Accept-Language": "ka,en"},
+                                 follow_redirects=True, timeout=TIMEOUT) as client:
+        for page in range(pages):
+            start = page * 20
+            resp = await client.get(f"{YPPO_BASE}/en/organizations",
+                                    params={"search": city, "start": start})
+            await asyncio.sleep(PAUSE)
+            if resp.status_code != 200:
+                print(f"  ! page start={start}: HTTP {resp.status_code}")
+                break
+            found = [c for c in yp_cards(resp.text) if city.lower() in (c["address"] or "").lower()]
+            print(f"  yp.com.ge start={start:>3}: {len(found)} in {city}")
+            if not found:
+                break
+            for card in found:
+                domain = ""
+                site = card.get("website") or ""
+                if site:
+                    from harvey.collectors.discover import normalize_domain
+                    domain = normalize_domain(site)
+                company = Company(
+                    name=card["name"][:120],
+                    phone=card.get("phone", ""),
+                    website=site,
+                    domain=domain,
+                    industry=card.get("category", "") or city,
+                    location=city,
+                    source="seed:yp.com.ge",
+                    source_url=f"{YPPO_BASE}/en/organizations/org-{card['ident']}-en",
+                    external_id=f"yppo:{card['ident']}",
+                )
+                new = not company.id
+                cid = await store.add_company(company)
+                if new:
+                    inserted += 1
+                for code, val in (("GE_PHONE", company.phone), ("GE_ACTIVITY", company.industry)):
+                    if val:
+                        rows.append({"company_id": cid, "signal_code": code,
+                                     "collector": "seed", "value_text": val,
+                                     "confidence": 1.0, "evidence_url": company.source_url})
+    if rows:
+        await store.add_observations(rows)
+    print(f"\nseed(yp.com.ge): {inserted} new companies · {len(rows)} observations")
+    return 0
+
+
 async def run(city: str, categories: list[str], limit: int, pages: int, db: str) -> int:
     store = StateManager(db)
     await store.init_db()
@@ -271,7 +353,7 @@ async def run(city: str, categories: list[str], limit: int, pages: int, db: str)
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source", default="compania", choices=("compania", "madloba"))
+    ap.add_argument("--source", default="compania", choices=("compania", "madloba", "yppo"))
     ap.add_argument("--city", default="ბათუმი")
     ap.add_argument("--categories", default="",
                     help="comma-separated Georgian categories (default: the ICP's industries)")
@@ -282,6 +364,9 @@ def main() -> int:
     ap.add_argument("--pages", type=int, default=4)
     ap.add_argument("--db", default="data/harvey.db")
     args = ap.parse_args()
+
+    if args.source == "yppo":
+        return asyncio.run(run_yp(args.city, args.pages, args.db))
 
     if args.source == "madloba":
         paths = [p.strip() for p in args.paths.split(",") if p.strip()] or [
